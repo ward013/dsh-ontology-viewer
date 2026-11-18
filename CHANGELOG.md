@@ -8,7 +8,7 @@
 
 ## 1.1.0-custom.1 - 2026-11-18
 
-定制分支（fork）版本，基于上游 1.1.0，非上游发行版；原项目见 <https://github.com/a158070653-hash/dsh-ontology-viewer>。
+定制分支（fork）版本，基于上游 main（51d9eef），非上游发行版；原项目见 <https://github.com/a158070653-hash/dsh-ontology-viewer>。
 
 ### Fixed
 
