@@ -687,6 +687,21 @@ export function createOntologyGraphView(React) {
     }, [nodesById])
 
     const onSelectNode = typeof props.onSelectNode === 'function' ? props.onSelectNode : null
+    // Clearing the selection must also release the roving focus ring and tell the
+    // host shell that keeps the selection in the workspace surface (otherwise the
+    // controlled `selectedId` prop immediately re-selects the node).
+    const clearSelection = useCallback(() => {
+      setSelectedId(null)
+      setRovingId(null)
+      if (onSelectNode) {
+        try {
+          onSelectNode(null)
+        } catch (error) {
+          // Host selection is best effort; local state is already cleared.
+        }
+      }
+    }, [onSelectNode])
+
     const selectNode = useCallback((id, options) => {
       const target = typeof id === 'string' && nodesById.has(id) ? id : null
       if (target && (!options || options.focusGraph !== false)) focusGraphCanvas()
@@ -747,7 +762,7 @@ export function createOntologyGraphView(React) {
       if (event.key === 'Escape') {
         event.preventDefault()
         event.stopPropagation()
-        setSelectedId(null)
+        clearSelection()
         return
       }
       if (event.key === 'ArrowDown' || event.key === 'ArrowRight' ||
@@ -764,7 +779,7 @@ export function createOntologyGraphView(React) {
         const element = nodeElsRef.current.get(nextId)
         if (element && typeof element.focus === 'function') element.focus()
       }
-    }, [renderableNodes, selectNode])
+    }, [renderableNodes, selectNode, clearSelection])
 
     const handleCanvasKeyDown = useCallback((event) => {
       const action = graphShortcutAction(event.key, event.target, svgRef.current)
@@ -773,7 +788,7 @@ export function createOntologyGraphView(React) {
       event.stopPropagation()
       if (action === 'escape') {
         if (searchActive) clearSearch()
-        else setSelectedId(null)
+        else clearSelection()
       } else if (action === 'zoom-in') {
         zoomBy(1.25)
       } else if (action === 'zoom-out') {
@@ -781,7 +796,7 @@ export function createOntologyGraphView(React) {
       } else if (action === 'fit') {
         fitPoints(fitPointsList)
       }
-    }, [searchActive, clearSearch, zoomBy, fitPoints, fitPointsList])
+    }, [searchActive, clearSearch, zoomBy, fitPoints, fitPointsList, clearSelection])
 
     const handleSearchKeyDown = useCallback((event) => {
       const count = searchResults.length
@@ -821,7 +836,7 @@ export function createOntologyGraphView(React) {
           event.stopImmediatePropagation()
           if (action === 'escape') {
             if (searchActive) clearSearch()
-            else setSelectedId(null)
+            else clearSelection()
           } else if (action === 'zoom-in') {
             zoomBy(1.25)
           } else if (action === 'zoom-out') {
@@ -966,11 +981,21 @@ export function createOntologyGraphView(React) {
         }
       }
       if (drag.moved) return
-      if (drag.nodeId) selectNode(drag.nodeId)
-      else {
-        setSelectedId(null)
-        setPanelOpen(false)
+      if (drag.nodeId) {
+        selectNode(drag.nodeId)
+        return
       }
+      // Background click: close an open panel first; only the next click
+      // clears the selection, so a single click never flashes both states.
+      if (activePanel !== 'none') {
+        setActivePanel('none')
+        return
+      }
+      if (panelOpen) {
+        setPanelOpen(false)
+        return
+      }
+      if (selectedId) clearSelection()
     }
 
     const handlePointerLeave = () => {
@@ -1009,23 +1034,29 @@ export function createOntologyGraphView(React) {
     }, [selectedNode, scheduleCopyReset])
 
     // --- filter / exploration / layout actions ------------------------------
-    const updateFilter = useCallback((updater) => {
-      setFilterState((previous) => normalizeFilterState(updater(normalizeFilterState(previous))))
+    // Local patch (not upstream): writing a computed value instead of handing a
+    // functional updater to setFilterState. In the DSH Desktop document-preview
+    // surface the updater form was swallowed, so ticking a kind in the filter
+    // panel changed nothing. Normalising on both sides keeps the invariants of
+    // normalizeFilterState identical to the updater version.
+    const applyFilterValue = useCallback((updater) => {
+      const next = normalizeFilterState(updater(normalizeFilterState(filterState)))
+      setFilterState(next)
       setExploreState((previous) => resetExploreCursor(previous))
       setNotice(null)
-    }, [])
-    const toggleKind = useCallback((kind) => updateFilter((previous) => ({
+    }, [filterState])
+    const toggleKind = useCallback((kind) => applyFilterValue((previous) => ({
       ...previous,
       kinds: toggleFilterValue(previous.kinds, kind),
-    })), [updateFilter])
-    const togglePredicate = useCallback((predicate) => updateFilter((previous) => ({
+    })), [applyFilterValue])
+    const togglePredicate = useCallback((predicate) => applyFilterValue((previous) => ({
       ...previous,
       predicates: toggleFilterValue(previous.predicates, predicate),
-    })), [updateFilter])
-    const setFilterDirection = useCallback((direction) => updateFilter((previous) => ({
+    })), [applyFilterValue])
+    const setFilterDirection = useCallback((direction) => applyFilterValue((previous) => ({
       ...previous,
       direction,
-    })), [updateFilter])
+    })), [applyFilterValue])
     const clearFilters = useCallback(() => {
       setFilterState(emptyFilterState())
       setExploreState((previous) => resetExploreCursor(previous))
@@ -1104,13 +1135,13 @@ export function createOntologyGraphView(React) {
       const source = positionById.get(edge.source)
       const target = positionById.get(edge.target)
       if (!source || !target) continue
-      const isActive = highlightRelation(edge.source, edge.target, activeId)
-      const isDimmed = Boolean(activeId) && !isActive
+      const isActive = exploreActive ? true : highlightRelation(edge.source, edge.target, activeId)
+      const isDimmed = exploreActive ? false : (Boolean(activeId) && !isActive)
       const classes = ['dov-edge', 'dov-edge--' + (edge.kind || 'object')]
       if (isActive) classes.push('dov-is-active')
       if (isDimmed) classes.push(exploreActive ? 'dov-is-context' : 'dov-is-dim')
       const multiplicity = Math.max(1, asNumber(edge.count, 1))
-      const width = 0.9 + Math.min(1.4, Math.log(multiplicity + 1) * 0.45)
+      const width = 0.8 + Math.min(1.2, Math.log(multiplicity + 1) * 0.4)
       const radius = nodeRadius(nodesById.get(edge.source) && nodesById.get(edge.source).degree)
       if (edge.source === edge.target) {
         edgeElements.push(h('path', {
@@ -1159,7 +1190,7 @@ export function createOntologyGraphView(React) {
       const isHovered = node.id === hoverId
       const isActive = node.id === activeId
       const isMatch = matchSet.has(node.id)
-      const isDimmed = activeSet !== null && !activeSet.has(node.id)
+      const isDimmed = exploreActive ? false : (activeSet !== null && !activeSet.has(node.id))
       const classes = ['dov-node', 'dov-node--' + (node.kind || 'individual')]
       if (isSelected) classes.push('dov-is-selected')
       if (isHovered) classes.push('dov-is-hovered')
@@ -1339,8 +1370,18 @@ export function createOntologyGraphView(React) {
       ? h('div', { key: 'hint', className: 'dov-canvas-hint' },
         tr('viewer.hint', '拖拽画布平移 · 滚轮缩放 · 点击节点查看详情'))
       : null
+    const legend = emptyKind === null && renderableNodes.length > 0 ? h('div', { key: 'legend', className: 'dov-legend', 'aria-hidden': 'true' },
+      h('span', { className: 'dov-legend-item' }, h('span', { className: 'dov-legend-dot dov-legend-dot--class' }), kindLabel('class')),
+      h('span', { className: 'dov-legend-item' }, h('span', { className: 'dov-legend-dot dov-legend-dot--property' }), kindLabel('property')),
+      h('span', { className: 'dov-legend-item' }, h('span', { className: 'dov-legend-dot dov-legend-dot--individual' }), kindLabel('individual')),
+      h('span', { className: 'dov-legend-item' }, h('span', { className: 'dov-legend-dot dov-legend-dot--external' }), kindLabel('external')),
+      h('span', { className: 'dov-legend-sep' }),
+      h('span', { className: 'dov-legend-item' }, h('span', { className: 'dov-legend-line dov-legend-line--type' }), tr('viewer.edgeType', '类型')),
+      h('span', { className: 'dov-legend-item' }, h('span', { className: 'dov-legend-line dov-legend-line--subclass' }), tr('viewer.edgeSubclass', '子类')),
+      h('span', { className: 'dov-legend-item' }, h('span', { className: 'dov-legend-line' }), tr('viewer.edgeOther', '其它'))
+    ) : null
     const canvas = h('div', { key: 'canvas', className: 'dov-canvas', ref: canvasRef },
-      scene, overlay, exploreBadge, busyBadge, hint)
+      scene, overlay, legend, exploreBadge, busyBadge, hint)
 
     // --- secondary panels + details ----------------------------------------
     const filterPanel = activePanel === 'filter' ? h(Controls.FilterPanel, {

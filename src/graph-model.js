@@ -1870,6 +1870,90 @@ function runLayoutIterations(state, from, to) {
 }
 
 /** Scale and centre the solved coordinates into the padded box. */
+/**
+ * Local patch (not upstream): after the uniform fit, nudge apart nodes that
+ * ended up closer than a readable spacing. The force simulation can leave its
+ * solved bounding box far larger than the canvas, and the uniform rescale then
+ * packs the whole graph into a few pixels. This pass only moves existing
+ * points, is deterministic (no Math.random) and stays inside the padded box.
+ */
+function declutterLayout(points, count, lowerX, upperX, lowerY, upperY) {
+  if (count < 3) return points
+  const area = Math.max(1, (upperX - lowerX) * (upperY - lowerY))
+  let spacing = 0.95 * Math.sqrt(area / count)
+  if (spacing > 46) spacing = 46
+  if (spacing < 10) spacing = 10
+  const limit = Math.sqrt((area * 0.88) / count)
+  if (spacing > limit) spacing = Math.max(4, limit)
+  const iterations = count <= 400 ? 160 : (count <= 900 ? 90 : 45)
+  const cell = Math.max(spacing, 1)
+  const pushX = new Float64Array(count)
+  const pushY = new Float64Array(count)
+  const buckets = new Map()
+  const hashUnit = (a, b) => {
+    const s = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453
+    return s - Math.floor(s)
+  }
+  for (let iteration = 0; iteration < iterations; iteration += 1) {
+    pushX.fill(0)
+    pushY.fill(0)
+    buckets.clear()
+    for (let i = 0; i < count; i += 1) {
+      const key = Math.floor(points[i].x / cell) + ':' + Math.floor(points[i].y / cell)
+      const list = buckets.get(key)
+      if (list === undefined) buckets.set(key, [i])
+      else list.push(i)
+    }
+    for (const entry of buckets) {
+      const parts = entry[0].split(':')
+      const cx = Number(parts[0])
+      const cy = Number(parts[1])
+      const list = entry[1]
+      for (let ox = -1; ox <= 1; ox += 1) {
+        for (let oy = -1; oy <= 1; oy += 1) {
+          const other = buckets.get((cx + ox) + ':' + (cy + oy))
+          if (other === undefined) continue
+          for (let a = 0; a < list.length; a += 1) {
+            const i = list[a]
+            for (let b = 0; b < other.length; b += 1) {
+              const j = other[b]
+              if (j <= i) continue
+              let ddx = points[i].x - points[j].x
+              let ddy = points[i].y - points[j].y
+              let distance = Math.sqrt(ddx * ddx + ddy * ddy)
+              if (distance >= spacing) continue
+              if (distance < 1e-6) {
+                ddx = hashUnit(i, j) - 0.5
+                ddy = hashUnit(j, i) - 0.5
+                distance = Math.sqrt(ddx * ddx + ddy * ddy)
+                if (!(distance > 1e-9)) {
+                  ddx = 0.01
+                  ddy = 0
+                  distance = 0.01
+                }
+              }
+              const force = (spacing - distance) * 0.5
+              const ux = ddx / distance
+              const uy = ddy / distance
+              pushX[i] += ux * force
+              pushY[i] += uy * force
+              pushX[j] -= ux * force
+              pushY[j] -= uy * force
+            }
+          }
+        }
+      }
+    }
+    for (let i = 0; i < count; i += 1) {
+      const nx = points[i].x + pushX[i] * 0.5
+      const ny = points[i].y + pushY[i] * 0.5
+      if (Number.isFinite(nx)) points[i].x = Math.min(upperX, Math.max(lowerX, nx))
+      if (Number.isFinite(ny)) points[i].y = Math.min(upperY, Math.max(lowerY, ny))
+    }
+  }
+  return points
+}
+
 function finalizeLayout(state) {
   const count = state.count
   const xs = state.xs
@@ -1918,6 +2002,7 @@ function finalizeLayout(state) {
     y = Math.min(upperY, Math.max(lowerY, y))
     result[i] = { id: ids[i], x, y, vx: 0, vy: 0 }
   }
+  declutterLayout(result, count, lowerX, upperX, lowerY, upperY)
   return result
 }
 

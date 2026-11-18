@@ -377,10 +377,10 @@ export function expandHierarchy(hierarchy, options) {
     return ref
   }
 
-  const queue = []
-  for (const id of input.roots || []) queue.push({ entityId: id, parentRefId: null, depth: 0, path: [], relation: null })
+  const seeds = []
+  for (const id of input.roots || []) seeds.push({ entityId: id, parentRefId: null, depth: 0, path: [], relation: null })
   for (const cycle of input.cycles || []) {
-    queue.push({
+    seeds.push({
       entityId: cycle.members[0],
       parentRefId: null,
       depth: 0,
@@ -390,28 +390,33 @@ export function expandHierarchy(hierarchy, options) {
     })
   }
   for (const id of input.orphans || []) {
-    queue.push({ entityId: id, parentRefId: null, depth: 0, path: [], relation: null, orphan: true })
+    seeds.push({ entityId: id, parentRefId: null, depth: 0, path: [], relation: null, orphan: true })
   }
-  let cursor = 0
-  while (cursor < queue.length) {
-    const item = queue[cursor]
-    cursor += 1
-    const entity = entities.get(item.entityId)
-    if (!entity) continue
-    const ref = pushRef(item.entityId, item.parentRefId, item.depth, item.path, item.relation)
-    if (!ref) continue
-    if (item.cycleGroup) ref.cycleGroup = item.cycleGroup
-    if (item.orphan) ref.orphan = true
-    if (!ref.expanded || ref.depth >= maxDepth) continue
-    const path = item.path.concat([item.entityId])
-    for (const relation of entity.children) {
-      queue.push({
-        entityId: relation.childId,
-        parentRefId: ref.refId,
-        depth: ref.depth + 1,
-        path: path,
-        relation: relation,
-      })
+  // Depth-first pre-order: every expanded entity must place its children directly
+  // below its own row. An earlier breadth-first walk appended them to the end of
+  // the whole list, so expanding a node looked like a jump to the bottom.
+  for (const seed of seeds) {
+    const stack = [seed]
+    while (stack.length > 0) {
+      const item = stack.pop()
+      const entity = entities.get(item.entityId)
+      if (!entity) continue
+      const ref = pushRef(item.entityId, item.parentRefId, item.depth, item.path, item.relation)
+      if (!ref) break
+      if (item.cycleGroup) ref.cycleGroup = item.cycleGroup
+      if (item.orphan) ref.orphan = true
+      if (!ref.expanded || ref.depth >= maxDepth) continue
+      const path = item.path.concat([item.entityId])
+      for (let index = entity.children.length - 1; index >= 0; index -= 1) {
+        const relation = entity.children[index]
+        stack.push({
+          entityId: relation.childId,
+          parentRefId: ref.refId,
+          depth: ref.depth + 1,
+          path: path,
+          relation: relation,
+        })
+      }
     }
   }
   return {

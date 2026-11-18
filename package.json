@@ -1,6 +1,6 @@
 {
   "name": "dsh-ontology-viewer",
-  "version": "1.1.0",
+  "version": "1.1.0-custom.1",
   "description": "Ontology graph viewer for DeepSeek Harness: open .ttl / .owl / .rdf / .jsonld / .nt files and see the RDF graph as an interactive node-link diagram.",
   "type": "module",
   "main": "index.js",
@@ -47,13 +47,16 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/a158070653-hash/dsh-ontology-viewer.git"
+    "url": "git+https://github.com/ward013/dsh-ontology-viewer.git"
   },
-  "homepage": "https://github.com/a158070653-hash/dsh-ontology-viewer#readme",
+  "homepage": "https://github.com/ward013/dsh-ontology-viewer#readme",
   "bugs": {
-    "url": "https://github.com/a158070653-hash/dsh-ontology-viewer/issues"
+    "url": "https://github.com/ward013/dsh-ontology-viewer/issues"
   },
-  "author": "a158070653-hash",
+  "author": "a158070653-hash (original author) <https://github.com/a158070653-hash>",
+  "contributors": [
+    "ward013 (fork maintainer)"
+  ],
   "license": "Apache-2.0",
   "engines": {
     "node": ">=22"

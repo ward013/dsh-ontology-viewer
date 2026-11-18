@@ -1,0 +1,16 @@
+dsh-ontology-viewer
+===================
+
+Original work Copyright (c) a158070653-hash and contributors.
+  Project: https://github.com/a158070653-hash/dsh-ontology-viewer
+  License: Apache License, Version 2.0 (see LICENSE)
+
+This distribution is a modified fork of the project above.
+  Fork:    https://github.com/ward013/dsh-ontology-viewer
+  Fork of: v1.1.0
+  Changes: filter panel fix, selection/background-click behaviour, node
+           declutter layout, class-tree expansion order, colour palette and
+           legend. See the README section "本分支改动".
+
+Modifications in this fork were made by https://github.com/ward013 and are
+released under the same Apache License, Version 2.0.

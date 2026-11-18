@@ -18,10 +18,26 @@
 
 ---
 
+> ### 关于本仓库（第三方定制分支）
+>
+> 这个仓库 **不是上游官方仓库**，而是基于原作者项目的个人定制分支（fork）。
+>
+> - **原作者 GitHub**：[a158070653-hash](https://github.com/a158070653-hash)
+> - **原始项目地址**：<https://github.com/a158070653-hash/dsh-ontology-viewer>
+> - **上游许可证**：Apache License 2.0（见 [LICENSE](LICENSE) 与 [NOTICE](NOTICE)）
+> - **本分支地址**：<https://github.com/ward013/dsh-ontology-viewer>
+> - **本分支维护者**：[ward013](https://github.com/ward013)
+> - **基线版本**：上游 `v1.1.0`，差异见 [本分支改动](#本分支改动)
+>
+> 代码与设计仍归原作者所有；本分支只包含日常使用中遇到的问题修正。
+
+---
+
 **当前版本：1.1.0** · **相关文档**：[DSH 兼容、依赖与升级](docs/compatibility.md) · [接入笔记](docs/integration.md) · [参与贡献](CONTRIBUTING.md) · [更新日志](CHANGELOG.md)
 
 ## 目录
 
+- [本分支改动](#本分支改动)
 - [为什么做这个](#为什么做这个)
 - [功能特性](#功能特性)
 - [安装](#安装)
@@ -34,6 +50,17 @@
 - [常见问题](#常见问题)
 - [验证状态](#验证状态)
 - [English](#english)
+
+## 本分支改动
+
+相对上游 `v1.1.0` 的全部差异；上游未采纳、也不保证后续合并。改动的初始动机都来自 DSH Desktop 上实际使用时遇到的问题：
+
+- **过滤面板失效**：节点类型/关系类型的复选框、关系方向的出边/入边按钮点击后没有任何效果。渲染与事件绑定本身没问题，问题出在函数式 `setFilterState(updater)` 的返回结果没有被写回，改为先算出新值再直接写入（`applyFilterValue`）。
+- **画布无法取消选中**：工作区视图的选中状态由外层宿主控制（受控 `selectedId`），只清本地 state 会被下一次渲染立刻恢复。新增 `clearSelection()` 同时通知宿主取消选中并清掉 roving 焦点环。
+- **空白画布点击分级**：一次点击不再同时关面板又清选中；现在是「关面板 → 关详情 → 取消选中」三步递进，避免闪烁。
+- **节点重叠**：力导向解算出的包围盒远大于画布，`finalizeLayout` 的等比缩放会把整张图压到几像素以内。新增确定性去重叠松弛 `declutterLayout()`，并把目标间距提高到 `0.95 × sqrt(面积/节点数)`（上限 46px）。
+- **类层级展开错位**：展开某个类时，子行被追加到整个列表末尾而不是紧跟父行。`expandHierarchy()` 由广度优先改为深度优先前序。
+- **配色与图例**：节点按类/属性/个体/外部、关系按类型/子类/其它分色，画布右上角新增图例；探索时一跳与多跳同一色相，不再用深浅区分距离。
 
 ## 为什么做这个
 
@@ -56,6 +83,14 @@
 - **零运行时依赖**：解析器、图模型、渲染全部自带；不引入 d3/cytoscape 等库，不请求网络。
 
 ## 安装
+
+> 本仓库是 [ward013](https://github.com/ward013) 的定制分支，安装方式与上游完全一致，只需把仓库地址换成下面这个：
+>
+> ```bash
+> dsh plugin --profile <profile> add https://github.com/ward013/dsh-ontology-viewer.git
+> ```
+>
+> 想用原版（不含本分支改动）请用 [上游仓库](https://github.com/a158070653-hash/dsh-ontology-viewer)。
 
 > 发布验证基线：**DSH Desktop 0.2.2-rc.1（Windows x64）**；该次运行使用 Node.js 24.21.0。包声明的 Node.js 要求仍是 `>=22`，不把 24.21.0 当成最低版本。可选 `dsh-better-sidebar` 入口已在 0.30.1 验收。其它 DSH 版本、Web 部署、操作系统/架构未由本次发布证据覆盖。插件是标准 bundle：安装会同时写入依赖与 `dsh.profile.bundles`，装完刷新页面生效。
 
@@ -304,6 +339,10 @@ npm run pack:release # 生成发版用 dsh-ontology-viewer.tgz（固定文件名
 如果你发现视觉问题，欢迎提 issue，附上文件片段和截图；改 `src/graph-view.js` 的 `CSS` 常量后 `npm run build` 即可。
 
 ## English
+
+> **This is a third-party fork, not the upstream repository.**
+> Original project and author: [dsh-ontology-viewer](https://github.com/a158070653-hash/dsh-ontology-viewer) by [a158070653-hash](https://github.com/a158070653-hash), Apache-2.0.
+> This fork is maintained by [ward013](https://github.com/ward013) and only carries the fixes listed in [本分支改动](#本分支改动).
 
 **dsh-ontology-viewer** is a plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Open `.ttl`, `.owl`, `.rdf`, `.jsonld`, `.nt`, `.n3` files from the file tree and the right-sidebar preview renders their RDF triples as an interactive graph instead of raw text.
 
