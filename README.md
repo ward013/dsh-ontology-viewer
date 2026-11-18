@@ -33,7 +33,7 @@
 
 ---
 
-**当前版本：1.1.0** · **相关文档**：[DSH 兼容、依赖与升级](docs/compatibility.md) · [接入笔记](docs/integration.md) · [参与贡献](CONTRIBUTING.md) · [更新日志](CHANGELOG.md)
+**当前版本：1.1.0-custom.1（上游基线 1.1.0）** · **相关文档**：[DSH 兼容、依赖与升级](docs/compatibility.md) · [接入笔记](docs/integration.md) · [参与贡献](CONTRIBUTING.md) · [更新日志](CHANGELOG.md)
 
 ## 目录
 
